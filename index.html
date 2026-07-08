@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>造成リスク概算ツール Ver.1.0 試作2</title>
+  <link rel="stylesheet" href="style.css?v=10p4">
+  <script src="data.js?v=10p4" defer></script>
+  <script src="app.js?v=10p4" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">local / prototype</p>
+        <h1>造成リスク概算ツール Ver.1.0 試作2</h1>
+        <p class="lead">複数案件を保存し、土量が分からない初期査定段階の造成費概算レンジを比較できます。</p>
+        <p class="current-project">現在の案件: <strong id="currentProjectName">未名称案件</strong></p>
+      </div>
+      <div class="header-actions">
+        <button type="button" id="saveButton" class="button primary">保存</button>
+        <button type="button" id="newProjectButton" class="button secondary">新規案件</button>
+        <button type="button" id="resetCurrentButton" class="button secondary">現在の案件を初期化</button>
+        <button type="button" id="resetAllButton" class="button danger">全データを初期化</button>
+      </div>
+    </header>
+
+    <section class="panel project-list-panel" aria-labelledby="projectListTitle">
+      <div class="section-heading">
+        <div>
+          <p class="section-kicker">projects</p>
+          <h2 id="projectListTitle">案件一覧</h2>
+        </div>
+        <button type="button" id="newProjectListButton" class="button primary">新規案件を作成</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="project-table">
+          <thead>
+            <tr>
+              <th scope="col">案件名</th>
+              <th scope="col">所在地</th>
+              <th scope="col">土地面積</th>
+              <th scope="col">想定区画数</th>
+              <th scope="col">造成難易度</th>
+              <th scope="col">標準概算造成費</th>
+              <th scope="col">最終更新日</th>
+              <th scope="col">操作</th>
+            </tr>
+          </thead>
+          <tbody id="projectListBody"></tbody>
+        </table>
+      </div>
+      <p id="projectListEmpty" class="empty-note">案件はまだありません。</p>
+    </section>
+
+    <main class="workspace">
+      <form id="projectForm" class="form-stack" autocomplete="off">
+        <section class="panel" aria-labelledby="basicTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">01</p>
+              <h2 id="basicTitle">案件情報・基本条件</h2>
+            </div>
+            <span class="badge">土量入力なし</span>
+          </div>
+
+          <div class="field-grid two project-info-grid">
+            <label class="field" for="projectName">
+              <span>案件名</span>
+              <input id="projectName" data-project-field="name" type="text" placeholder="未名称案件">
+            </label>
+
+            <label class="field" for="projectLocation">
+              <span>所在地</span>
+              <input id="projectLocation" data-project-field="location" type="text" placeholder="市区町村・町名など">
+            </label>
+
+            <label class="field" for="projectLotNumber">
+              <span>地番</span>
+              <input id="projectLotNumber" data-project-field="lotNumber" type="text" placeholder="地番">
+            </label>
+
+            <label class="field" for="propertyType">
+              <span>物件種別</span>
+              <select id="propertyType" data-project-field="propertyType">
+                <option value="戸建用地">戸建用地</option>
+                <option value="戸建分譲用地">戸建分譲用地</option>
+                <option value="収益用地">収益用地</option>
+                <option value="山林">山林</option>
+                <option value="農地">農地</option>
+                <option value="駐車場">駐車場</option>
+                <option value="その他">その他</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-grid three">
+            <label class="field" for="siteArea">
+              <span>土地面積</span>
+              <span class="control unit-control">
+                <input id="siteArea" data-field="siteArea" type="number" min="0" step="0.01" inputmode="decimal">
+                <span>㎡</span>
+              </span>
+            </label>
+
+            <label class="field" for="effectiveSiteArea">
+              <span>有効宅地面積</span>
+              <span class="control unit-control">
+                <input id="effectiveSiteArea" data-field="effectiveSiteArea" type="number" min="0" step="0.01" inputmode="decimal">
+                <span>㎡</span>
+              </span>
+            </label>
+
+            <label class="field" for="lotCount">
+              <span>想定区画数</span>
+              <span class="control unit-control">
+                <input id="lotCount" data-field="lotCount" type="number" min="1" step="1" inputmode="numeric">
+                <span>区画</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="field-grid two">
+            <label class="field" for="currentStatus">
+              <span>現況</span>
+              <select id="currentStatus" data-field="currentStatus">
+                <option value="unknown">不明</option>
+                <option value="vacantLot">更地</option>
+                <option value="oldHouse">古家あり</option>
+                <option value="parking">駐車場</option>
+                <option value="farmland">農地</option>
+                <option value="forest">山林</option>
+                <option value="slope">傾斜地</option>
+                <option value="other">その他</option>
+              </select>
+            </label>
+
+            <label class="field" for="difficulty">
+              <span>造成難易度</span>
+              <select id="difficulty" data-field="difficulty">
+                <option value="flat">ほぼ平坦</option>
+                <option value="light">やや造成あり</option>
+                <option value="elevation">高低差あり</option>
+                <option value="retainingLarge">擁壁・大規模造成あり</option>
+                <option value="forestSlope">山林・傾斜地</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="elevationGap">
+              <span>高低差</span>
+              <select id="elevationGap" data-field="elevationGap">
+                <option value="unknown">不明</option>
+                <option value="none">ほぼなし</option>
+                <option value="under05">0.5m未満</option>
+                <option value="from05to1">0.5m以上 1m未満</option>
+                <option value="from1to2">1m以上 2m未満</option>
+                <option value="over2">2m以上</option>
+              </select>
+            </label>
+
+            <label class="field" for="slopeDegree">
+              <span>傾斜の程度</span>
+              <select id="slopeDegree" data-field="slopeDegree">
+                <option value="unknown">不明</option>
+                <option value="flat">ほぼ平坦</option>
+                <option value="gentle">緩い傾斜</option>
+                <option value="moderate">中程度の傾斜</option>
+                <option value="steep">強い傾斜</option>
+              </select>
+            </label>
+
+            <label class="field" for="roadLevelGap">
+              <span>道路との段差</span>
+              <select id="roadLevelGap" data-field="roadLevelGap">
+                <option value="unknown">不明</option>
+                <option value="none">ほぼなし</option>
+                <option value="under05">0.5m未満</option>
+                <option value="from05to1">0.5m以上 1m未満</option>
+                <option value="over1">1m以上</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="rateTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">02</p>
+              <h2 id="rateTitle">造成難易度別 単価</h2>
+            </div>
+            <button type="button" id="resetRatesButton" class="button ghost">単価を初期値へ戻す</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="rate-table">
+              <thead>
+                <tr>
+                  <th scope="col">造成難易度</th>
+                  <th scope="col">低め 円/㎡</th>
+                  <th scope="col">標準 円/㎡</th>
+                  <th scope="col">高め 円/㎡</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">ほぼ平坦</th>
+                  <td><input data-rate-field="difficultyRates.flat.low" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.flat.standard" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.flat.high" type="number" min="0" step="1000"></td>
+                </tr>
+                <tr>
+                  <th scope="row">やや造成あり</th>
+                  <td><input data-rate-field="difficultyRates.light.low" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.light.standard" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.light.high" type="number" min="0" step="1000"></td>
+                </tr>
+                <tr>
+                  <th scope="row">高低差あり</th>
+                  <td><input data-rate-field="difficultyRates.elevation.low" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.elevation.standard" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.elevation.high" type="number" min="0" step="1000"></td>
+                </tr>
+                <tr>
+                  <th scope="row">擁壁・大規模造成あり</th>
+                  <td><input data-rate-field="difficultyRates.retainingLarge.low" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.retainingLarge.standard" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.retainingLarge.high" type="number" min="0" step="1000"></td>
+                </tr>
+                <tr>
+                  <th scope="row">山林・傾斜地</th>
+                  <td><input data-rate-field="difficultyRates.forestSlope.low" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.forestSlope.standard" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.forestSlope.high" type="number" min="0" step="1000"></td>
+                </tr>
+                <tr>
+                  <th scope="row">不明</th>
+                  <td><input data-rate-field="difficultyRates.unknown.low" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.unknown.standard" type="number" min="0" step="1000"></td>
+                  <td><input data-rate-field="difficultyRates.unknown.high" type="number" min="0" step="1000"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="wallTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">03</p>
+              <h2 id="wallTitle">擁壁</h2>
+            </div>
+          </div>
+
+          <div class="field-grid two">
+            <label class="field" for="wallPresence">
+              <span>擁壁の有無</span>
+              <select id="wallPresence" data-field="wallPresence">
+                <option value="none">なし</option>
+                <option value="known">あり・数量入力</option>
+                <option value="unknownQuantity">あり・数量不明</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="wallLength">
+              <span>擁壁の延長</span>
+              <span class="control unit-control">
+                <input id="wallLength" data-field="wallLength" type="number" min="0" step="0.1" inputmode="decimal">
+                <span>m</span>
+              </span>
+            </label>
+
+            <label class="field" for="wallHeight">
+              <span>平均高さ</span>
+              <span class="control unit-control">
+                <input id="wallHeight" data-field="wallHeight" type="number" min="0" step="0.1" inputmode="decimal">
+                <span>m</span>
+              </span>
+            </label>
+
+            <label class="field" for="wallUnitPrice">
+              <span>擁壁単価</span>
+              <span class="control unit-control">
+                <input id="wallUnitPrice" data-field="wallUnitPrice" type="number" min="0" step="1000" inputmode="numeric">
+                <span>円/㎡</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="subsection">
+            <h3>擁壁あり・数量不明時のリスク加算</h3>
+            <div class="field-grid three">
+              <label class="field" for="wallRiskLow">
+                <span>低め</span>
+                <span class="control unit-control">
+                  <input id="wallRiskLow" data-rate-field="wallUnknownRiskRates.low" type="number" min="0" step="1000">
+                  <span>円/㎡</span>
+                </span>
+              </label>
+
+              <label class="field" for="wallRiskStandard">
+                <span>標準</span>
+                <span class="control unit-control">
+                  <input id="wallRiskStandard" data-rate-field="wallUnknownRiskRates.standard" type="number" min="0" step="1000">
+                  <span>円/㎡</span>
+                </span>
+              </label>
+
+              <label class="field" for="wallRiskHigh">
+                <span>高め</span>
+                <span class="control unit-control">
+                  <input id="wallRiskHigh" data-rate-field="wallUnknownRiskRates.high" type="number" min="0" step="1000">
+                  <span>円/㎡</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="riskInputTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">04</p>
+              <h2 id="riskInputTitle">リスク条件</h2>
+            </div>
+          </div>
+
+          <div class="field-grid three">
+            <label class="field" for="oldHouse">
+              <span>古家の有無</span>
+              <select id="oldHouse" data-field="oldHouse">
+                <option value="unknown">不明</option>
+                <option value="none">なし</option>
+                <option value="yes">あり</option>
+              </select>
+            </label>
+
+            <label class="field" for="treesStones">
+              <span>樹木・庭石の有無</span>
+              <select id="treesStones" data-field="treesStones">
+                <option value="unknown">不明</option>
+                <option value="none">なし</option>
+                <option value="yes">あり</option>
+              </select>
+            </label>
+
+            <label class="field" for="blockWall">
+              <span>ブロック塀の有無</span>
+              <select id="blockWall" data-field="blockWall">
+                <option value="unknown">不明</option>
+                <option value="none">なし</option>
+                <option value="yes">あり</option>
+              </select>
+            </label>
+
+            <label class="field" for="waterConnection">
+              <span>上水道引込</span>
+              <select id="waterConnection" data-field="waterConnection">
+                <option value="unknown">不明</option>
+                <option value="exists">あり</option>
+                <option value="notExists">なし</option>
+                <option value="upgrade">口径変更・増設が必要</option>
+              </select>
+            </label>
+
+            <label class="field" for="sewerConnection">
+              <span>下水道引込</span>
+              <select id="sewerConnection" data-field="sewerConnection">
+                <option value="unknown">不明</option>
+                <option value="exists">あり</option>
+                <option value="notExists">なし</option>
+                <option value="septic">浄化槽区域・要確認</option>
+              </select>
+            </label>
+
+            <label class="field" for="gasConnection">
+              <span>ガス引込</span>
+              <select id="gasConnection" data-field="gasConnection">
+                <option value="unknown">不明</option>
+                <option value="exists">あり</option>
+                <option value="notExists">なし</option>
+                <option value="propane">個別プロパン想定</option>
+              </select>
+            </label>
+
+            <label class="field" for="stormwater">
+              <span>雨水排水整備</span>
+              <select id="stormwater" data-field="stormwater">
+                <option value="unknown">不明</option>
+                <option value="notNeeded">不要見込み</option>
+                <option value="needed">必要見込み</option>
+                <option value="high">放流先・調整施設リスクあり</option>
+              </select>
+            </label>
+
+            <label class="field" for="surveyNeed">
+              <span>測量の必要性</span>
+              <select id="surveyNeed" data-field="surveyNeed">
+                <option value="unknown">不明</option>
+                <option value="notNeeded">不要見込み</option>
+                <option value="needed">必要</option>
+              </select>
+            </label>
+
+            <label class="field" for="designNeed">
+              <span>造成設計の必要性</span>
+              <select id="designNeed" data-field="designNeed">
+                <option value="unknown">不明</option>
+                <option value="notNeeded">不要見込み</option>
+                <option value="needed">必要</option>
+              </select>
+            </label>
+
+            <label class="field" for="permitRisk">
+              <span>開発許可・宅造許可など申請リスク</span>
+              <select id="permitRisk" data-field="permitRisk">
+                <option value="unknown">不明</option>
+                <option value="none">低い・該当なし見込み</option>
+                <option value="low">低め</option>
+                <option value="medium">中程度</option>
+                <option value="high">高い</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="riskCheckTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">05</p>
+              <h2 id="riskCheckTitle">リスクチェック</h2>
+            </div>
+            <span class="badge">案件ごとに保存</span>
+          </div>
+
+          <div class="field-grid three">
+            <label class="field" for="heightDifferenceRisk">
+              <span>高低差リスク</span>
+              <select id="heightDifferenceRisk" data-field="riskChecks.heightDifferenceRisk">
+                <option value="none">ほぼなし</option>
+                <option value="under05">0.5m未満</option>
+                <option value="from05to1">0.5m〜1.0m</option>
+                <option value="from1to2">1.0m〜2.0m</option>
+                <option value="over2">2.0m超</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="retainingWallRisk">
+              <span>擁壁リスク</span>
+              <select id="retainingWallRisk" data-field="riskChecks.retainingWallRisk">
+                <option value="none">擁壁なし</option>
+                <option value="newer">新しそうな擁壁あり</option>
+                <option value="old">古い擁壁あり</option>
+                <option value="stoneBlock">大谷石・間知石・ブロック擁壁あり</option>
+                <option value="crackTilt">ひび割れ・傾きあり</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="drainageRisk">
+              <span>排水リスク</span>
+              <select id="drainageRisk" data-field="riskChecks.drainageRisk">
+                <option value="ok">問題なさそう</option>
+                <option value="routeCheck">雨水排水経路要確認</option>
+                <option value="ponding">敷地内に水が溜まりやすそう</option>
+                <option value="outletUnknown">側溝・排水先が不明</option>
+                <option value="neighborDrainage">隣地排水・越境排水の可能性あり</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="roadAccessRisk">
+              <span>前面道路・接道リスク</span>
+              <select id="roadAccessRisk" data-field="riskChecks.roadAccessRisk">
+                <option value="publicWide">公道・幅員十分</option>
+                <option value="under4m">幅員4m未満の可能性</option>
+                <option value="privateRoad">私道</option>
+                <option value="designatedDevRoad">位置指定道路・開発道路の確認要</option>
+                <option value="roadTypeUnknown">建築基準法道路か不明</option>
+                <option value="concern">接道に懸念あり</option>
+              </select>
+            </label>
+
+            <label class="field" for="accessRouteRisk">
+              <span>搬入経路リスク</span>
+              <select id="accessRouteRisk" data-field="riskChecks.accessRouteRisk">
+                <option value="ok">問題なさそう</option>
+                <option value="narrow">道路が狭い</option>
+                <option value="largeVehicleDifficult">大型車進入が難しそう</option>
+                <option value="stairsElevation">階段・高低差で搬入困難</option>
+                <option value="heavyTraffic">周辺交通量が多い</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="permitRiskCheck">
+              <span>開発・宅造・許認可リスク</span>
+              <select id="permitRiskCheck" data-field="riskChecks.permitRisk">
+                <option value="none">特に懸念なし</option>
+                <option value="lotSplit">区画分割予定あり</option>
+                <option value="developmentPermit">開発許可の確認要</option>
+                <option value="takuzoMudRegulation">宅造区域・盛土規制区域の確認要</option>
+                <option value="cliffDisaster">がけ条例・急傾斜・土砂災害区域の確認要</option>
+                <option value="high">許認可リスク高い</option>
+              </select>
+            </label>
+
+            <label class="field" for="groundRisk">
+              <span>地盤リスク</span>
+              <select id="groundRisk" data-field="riskChecks.groundRisk">
+                <option value="low">懸念少ない</option>
+                <option value="fillPossible">盛土・造成地の可能性</option>
+                <option value="softPossible">軟弱地盤の可能性</option>
+                <option value="improvementPossible">地盤改良の可能性あり</option>
+                <option value="liquefactionFlood">液状化・浸水履歴確認要</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="neighborRisk">
+              <span>隣地・越境リスク</span>
+              <select id="neighborRisk" data-field="riskChecks.neighborRisk">
+                <option value="none">特に懸念なし</option>
+                <option value="boundaryUnfixed">境界未確定</option>
+                <option value="encroachment">越境物の可能性あり</option>
+                <option value="neighborWallDrainage">隣地擁壁・隣地排水の影響あり</option>
+                <option value="adjustmentNeeded">高低差により隣地調整が必要そう</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+
+            <label class="field" for="removalRisk">
+              <span>撤去物リスク</span>
+              <select id="removalRisk" data-field="riskChecks.removalRisk">
+                <option value="none">特に懸念なし</option>
+                <option value="oldHouse">古家あり</option>
+                <option value="blockWall">ブロック塀あり</option>
+                <option value="treesStones">庭石・樹木多い</option>
+                <option value="buriedObjects">地中埋設物の可能性あり</option>
+                <option value="unknown">不明</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="feeTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">06</p>
+              <h2 id="feeTitle">その他費用</h2>
+            </div>
+            <button type="button" id="clearFeesButton" class="button ghost">費用欄を0にする</button>
+          </div>
+
+          <div class="field-grid three">
+            <label class="field" for="buildingDemolitionFee">
+              <span>建物解体費</span>
+              <span class="control unit-control">
+                <input id="buildingDemolitionFee" data-field="fees.buildingDemolition" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="treesStonesRemovalFee">
+              <span>樹木・庭石撤去費</span>
+              <span class="control unit-control">
+                <input id="treesStonesRemovalFee" data-field="fees.treesStonesRemoval" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="blockWallRemovalFee">
+              <span>ブロック塀撤去費</span>
+              <span class="control unit-control">
+                <input id="blockWallRemovalFee" data-field="fees.blockWallRemoval" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="waterConnectionFee">
+              <span>上水道引込費</span>
+              <span class="control unit-control">
+                <input id="waterConnectionFee" data-field="fees.waterConnection" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="sewerConnectionFee">
+              <span>下水道引込費</span>
+              <span class="control unit-control">
+                <input id="sewerConnectionFee" data-field="fees.sewerConnection" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="gasConnectionFee">
+              <span>ガス引込費</span>
+              <span class="control unit-control">
+                <input id="gasConnectionFee" data-field="fees.gasConnection" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="stormwaterDrainageFee">
+              <span>雨水排水整備費</span>
+              <span class="control unit-control">
+                <input id="stormwaterDrainageFee" data-field="fees.stormwaterDrainage" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="surveyFee">
+              <span>測量費</span>
+              <span class="control unit-control">
+                <input id="surveyFee" data-field="fees.survey" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="designFee">
+              <span>設計費</span>
+              <span class="control unit-control">
+                <input id="designFee" data-field="fees.design" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="permitFee">
+              <span>申請費</span>
+              <span class="control unit-control">
+                <input id="permitFee" data-field="fees.permit" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="geotechSurveyFee">
+              <span>地盤調査費</span>
+              <span class="control unit-control">
+                <input id="geotechSurveyFee" data-field="fees.geotechSurvey" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="groundImprovementFee">
+              <span>地盤改良費</span>
+              <span class="control unit-control">
+                <input id="groundImprovementFee" data-field="fees.groundImprovement" type="number" min="0" step="10000">
+                <span>円</span>
+              </span>
+            </label>
+
+            <label class="field" for="contingencyRate">
+              <span>予備費率</span>
+              <span class="control unit-control">
+                <input id="contingencyRate" data-field="contingencyRate" type="number" min="0" max="100" step="1">
+                <span>%</span>
+              </span>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="memoTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">07</p>
+              <h2 id="memoTitle">メモ</h2>
+            </div>
+          </div>
+
+          <label class="field" for="memo">
+            <span>査定時メモ</span>
+            <textarea id="memo" data-field="memo" rows="5" placeholder="現地確認事項、査定担当者への共有事項など"></textarea>
+          </label>
+        </section>
+      </form>
+
+      <aside class="summary-panel" aria-labelledby="summaryTitle">
+        <div class="summary-head">
+          <div>
+            <p class="section-kicker">output</p>
+            <h2 id="summaryTitle">概算結果</h2>
+          </div>
+          <span id="saveStatus" class="save-status">未保存</span>
+        </div>
+
+        <p class="summary-note">調整前概算造成費</p>
+        <div class="range-list" aria-label="概算造成費レンジ">
+          <div class="metric">
+            <span>概算造成費 低め</span>
+            <strong id="totalLow">0万円</strong>
+          </div>
+          <div class="metric emphasized">
+            <span>概算造成費 標準</span>
+            <strong id="totalStandard">0万円</strong>
+          </div>
+          <div class="metric">
+            <span>概算造成費 高め</span>
+            <strong id="totalHigh">0万円</strong>
+          </div>
+        </div>
+
+        <div class="summary-block risk-diagnosis">
+          <h3>リスク診断</h3>
+          <div class="risk-score-line">
+            <span id="riskLevelBadge" class="risk-badge low">低リスク</span>
+            <strong id="riskScore">0点</strong>
+          </div>
+          <div id="riskDiagnosisSummary" class="risk-diagnosis-text"></div>
+          <div class="risk-mini-block">
+            <h4>主な注意項目</h4>
+            <ul id="riskAttentionItems" class="risk-list compact"></ul>
+          </div>
+          <div class="risk-mini-block">
+            <h4>追加確認が必要な項目</h4>
+            <ul id="riskConfirmationItems" class="risk-list compact"></ul>
+          </div>
+          <div class="risk-mini-block">
+            <h4>査定時の注意コメント</h4>
+            <p id="assessmentRiskComment" class="plain-comment"></p>
+          </div>
+          <div class="risk-mini-block">
+            <h4>買取業者打診時のコメント</h4>
+            <p id="buyerRiskComment" class="plain-comment"></p>
+          </div>
+        </div>
+
+        <div class="summary-block">
+          <h3>リスク調整後概算造成費</h3>
+          <div id="riskAdjustmentInfo" class="adjustment-info"></div>
+          <div id="adjustedTotals" class="compact-lines"></div>
+        </div>
+
+        <div class="summary-block">
+          <h3>坪単価換算</h3>
+          <div id="tsuboCosts" class="compact-lines"></div>
+        </div>
+
+        <div class="summary-block">
+          <h3>1区画あたり造成費</h3>
+          <div id="perLotCosts" class="compact-lines"></div>
+        </div>
+
+        <div class="summary-block">
+          <h3>主な内訳</h3>
+          <div id="breakdown" class="breakdown"></div>
+        </div>
+
+        <div class="summary-block">
+          <h3>リスクコメント</h3>
+          <ul id="riskComments" class="risk-list"></ul>
+        </div>
+
+        <div class="summary-block">
+          <div class="inline-heading">
+            <h3>査定・買取打診用メモ</h3>
+            <button type="button" id="copyMemoButton" class="button ghost small">コピー</button>
+          </div>
+          <textarea id="generatedMemo" class="generated-memo" rows="9" readonly></textarea>
+        </div>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>
